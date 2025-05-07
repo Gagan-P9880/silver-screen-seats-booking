@@ -30,7 +30,7 @@ const SeatSelection: React.FC<SeatSelectionProps> = ({ showtime, movie }) => {
         // Mark booked seats as occupied
         const updatedSeats = hallSeats.map(seat => ({
           ...seat,
-          status: bookedSeatIds.includes(seat.id) ? 'occupied' : 'available'
+          status: bookedSeatIds.includes(seat.id) ? 'occupied' as const : 'available' as const
         }));
         
         setSeats(updatedSeats);
@@ -59,14 +59,14 @@ const SeatSelection: React.FC<SeatSelectionProps> = ({ showtime, movie }) => {
       
       // Update seat status in the seats array
       setSeats(seats.map(s => 
-        s.id === seat.id ? { ...s, status: 'available' } : s
+        s.id === seat.id ? { ...s, status: 'available' as const } : s
       ));
     } else {
       setSelectedSeats([...selectedSeats, seat]);
       
       // Update seat status in the seats array
       setSeats(seats.map(s => 
-        s.id === seat.id ? { ...s, status: 'selected' } : s
+        s.id === seat.id ? { ...s, status: 'selected' as const } : s
       ));
     }
   };
