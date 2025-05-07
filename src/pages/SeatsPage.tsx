@@ -2,39 +2,59 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Film } from 'lucide-react';
-import { movies, showtimes } from '../data/moviesData';
+import { Movie, Showtime } from '../types/cinema';
+import { fetchMovieById, fetchShowtimeById } from '../services/movieService';
 import SeatSelection from '../components/SeatSelection';
+import { useToast } from "../hooks/use-toast";
 
 const SeatsPage = () => {
   const { showtimeId } = useParams<{ showtimeId: string }>();
-  const [showtime, setShowtime] = useState<any>(null);
-  const [movie, setMovie] = useState<any>(null);
+  const [showtime, setShowtime] = useState<Showtime | null>(null);
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   useEffect(() => {
-    if (showtimeId) {
-      const foundShowtime = showtimes.find(s => s.id === parseInt(showtimeId));
-      if (foundShowtime) {
-        setShowtime(foundShowtime);
-        
-        const foundMovie = movies.find(m => m.id === foundShowtime.movieId);
-        if (foundMovie) {
-          setMovie(foundMovie);
-        } else {
-          navigate('/');
-        }
-      } else {
+    const loadData = async () => {
+      if (!showtimeId) {
         navigate('/');
+        return;
       }
-    }
-  }, [showtimeId, navigate]);
+      
+      try {
+        setIsLoading(true);
+        const showtimeData = await fetchShowtimeById(parseInt(showtimeId));
+        setShowtime(showtimeData);
+        
+        const movieData = await fetchMovieById(showtimeData.movieId);
+        setMovie(movieData);
+      } catch (error) {
+        console.error("Failed to load data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load seat selection. Please try again.",
+          variant: "destructive"
+        });
+        navigate('/');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [showtimeId, navigate, toast]);
   
-  if (!showtime || !movie) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-cinema-dark flex items-center justify-center">
-        <p>Loading...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cinema-gold"></div>
       </div>
     );
+  }
+  
+  if (!showtime || !movie) {
+    return null;
   }
 
   return (

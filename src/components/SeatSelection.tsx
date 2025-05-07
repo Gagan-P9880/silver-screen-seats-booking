@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Seat, Showtime, Movie, generateSeats } from '../data/moviesData';
+import { Showtime, Movie, Seat } from '../types/cinema';
+import { fetchSeatsByHall, fetchBookedSeats } from '../services/movieService';
+import { useToast } from "../hooks/use-toast";
 
 interface SeatSelectionProps {
   showtime: Showtime;
@@ -11,12 +13,41 @@ interface SeatSelectionProps {
 const SeatSelection: React.FC<SeatSelectionProps> = ({ showtime, movie }) => {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   useEffect(() => {
-    // Generate seats for this showtime
-    setSeats(generateSeats());
-  }, [showtime.id]);
+    const loadSeats = async () => {
+      try {
+        setIsLoading(true);
+        // Get all seats for this hall
+        const hallSeats = await fetchSeatsByHall(showtime.hall);
+        
+        // Get booked seats for this showtime
+        const bookedSeatIds = await fetchBookedSeats(showtime.id);
+        
+        // Mark booked seats as occupied
+        const updatedSeats = hallSeats.map(seat => ({
+          ...seat,
+          status: bookedSeatIds.includes(seat.id) ? 'occupied' : 'available'
+        }));
+        
+        setSeats(updatedSeats);
+      } catch (error) {
+        console.error("Failed to load seats:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load seat information. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadSeats();
+  }, [showtime.id, showtime.hall, toast]);
   
   const handleSeatClick = (seat: Seat) => {
     if (seat.status === 'occupied') return;
@@ -63,6 +94,14 @@ const SeatSelection: React.FC<SeatSelectionProps> = ({ showtime, movie }) => {
   
   const totalPrice = selectedSeats.length * showtime.price;
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cinema-gold"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <div className="mb-6 text-center">
@@ -78,13 +117,15 @@ const SeatSelection: React.FC<SeatSelectionProps> = ({ showtime, movie }) => {
       </div>
       
       <div className="mb-8 flex flex-col items-center">
-        {Object.keys(seatsByRow).map(row => (
+        {Object.keys(seatsByRow).sort().map(row => (
           <div key={row} className="flex mb-2 items-center">
             <div className="w-8 text-center font-medium text-sm text-cinema-light-gray">
               {row}
             </div>
             <div className="flex flex-wrap justify-center">
-              {seatsByRow[row].map(seat => (
+              {seatsByRow[row]
+                .sort((a, b) => a.number - b.number)
+                .map(seat => (
                 <div
                   key={seat.id}
                   className={`cinema-seat ${

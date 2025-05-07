@@ -1,16 +1,41 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Movie, Showtime } from '../data/moviesData';
+import { Movie, Showtime } from '../types/cinema';
+import { fetchShowtimesByMovieId } from '../services/movieService';
+import { useToast } from "../hooks/use-toast";
 
 interface MovieDetailsProps {
   movie: Movie;
-  showtimes: Showtime[];
 }
 
-const MovieDetails: React.FC<MovieDetailsProps> = ({ movie, showtimes }) => {
+const MovieDetails: React.FC<MovieDetailsProps> = ({ movie }) => {
+  const [showtimes, setShowtimes] = useState<Showtime[]>([]);
   const [selectedShowtime, setSelectedShowtime] = useState<Showtime | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    const loadShowtimes = async () => {
+      try {
+        setIsLoading(true);
+        const data = await fetchShowtimesByMovieId(movie.id);
+        setShowtimes(data);
+      } catch (error) {
+        console.error("Failed to load showtimes:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load showtimes. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadShowtimes();
+  }, [movie.id, toast]);
   
   const handleShowtimeSelect = (showtime: Showtime) => {
     setSelectedShowtime(showtime);
@@ -78,25 +103,33 @@ const MovieDetails: React.FC<MovieDetailsProps> = ({ movie, showtimes }) => {
           <div>
             <h3 className="text-xl font-semibold mb-4">Showtimes</h3>
             
-            {Object.keys(showtimesByDate).map((date) => (
-              <div key={date} className="mb-6">
-                <h4 className="text-lg font-medium mb-3">
-                  {new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                </h4>
-                <div className="flex flex-wrap gap-3">
-                  {showtimesByDate[date].map((showtime) => (
-                    <button
-                      key={showtime.id}
-                      className={`time-slot ${selectedShowtime?.id === showtime.id ? 'selected' : ''}`}
-                      onClick={() => handleShowtimeSelect(showtime)}
-                    >
-                      <div>{showtime.time}</div>
-                      <div className="text-xs mt-1">{showtime.hall}</div>
-                    </button>
-                  ))}
-                </div>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cinema-gold"></div>
               </div>
-            ))}
+            ) : Object.keys(showtimesByDate).length > 0 ? (
+              Object.keys(showtimesByDate).map((date) => (
+                <div key={date} className="mb-6">
+                  <h4 className="text-lg font-medium mb-3">
+                    {new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {showtimesByDate[date].map((showtime) => (
+                      <button
+                        key={showtime.id}
+                        className={`time-slot ${selectedShowtime?.id === showtime.id ? 'selected' : ''}`}
+                        onClick={() => handleShowtimeSelect(showtime)}
+                      >
+                        <div>{showtime.time}</div>
+                        <div className="text-xs mt-1">{showtime.hall}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-cinema-light-gray">No showtimes available at the moment.</p>
+            )}
             
             <button
               className="cinema-btn cinema-btn-primary w-full mt-4 py-3"

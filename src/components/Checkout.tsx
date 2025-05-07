@@ -1,7 +1,10 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Movie, Showtime, Seat } from '../data/moviesData';
+import { Movie, Showtime, Seat } from '../types/cinema';
+import { createBooking } from '../services/movieService';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from "../hooks/use-toast";
 
 interface CheckoutProps {
   movie: Movie;
@@ -11,6 +14,7 @@ interface CheckoutProps {
 
 const Checkout: React.FC<CheckoutProps> = ({ movie, showtime, selectedSeats }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -34,24 +38,65 @@ const Checkout: React.FC<CheckoutProps> = ({ movie, showtime, selectedSeats }) =
     });
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
     
-    // Simulate payment processing
-    setTimeout(() => {
-      const bookingDetails = {
-        movie,
-        showtime,
-        selectedSeats,
-        customer: formData,
-        totalAmount: grandTotal,
-        bookingId: `BK${Math.floor(100000 + Math.random() * 900000)}`,
-        bookingDate: new Date().toISOString(),
-      };
+    try {
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
       
-      navigate('/confirmation', { state: { bookingDetails } });
-    }, 1500);
+      if (!user) {
+        // For demo purposes, we'll create an anonymous booking
+        // In a real app, we would redirect to login/signup
+        
+        // Simulate payment processing
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const bookingDetails = {
+          movie,
+          showtime,
+          selectedSeats,
+          customer: formData,
+          totalAmount: grandTotal,
+          bookingId: `BK${Math.floor(100000 + Math.random() * 900000)}`,
+          bookingDate: new Date().toISOString(),
+        };
+        
+        navigate('/confirmation', { state: { bookingDetails } });
+      } else {
+        // Create a real booking in the database
+        const seatIds = selectedSeats.map(seat => seat.id);
+        
+        // Save booking to database
+        const bookingReference = await createBooking(
+          user.id,
+          showtime.id,
+          seatIds,
+          grandTotal
+        );
+        
+        const bookingDetails = {
+          movie,
+          showtime,
+          selectedSeats,
+          customer: formData,
+          totalAmount: grandTotal,
+          bookingId: bookingReference,
+          bookingDate: new Date().toISOString(),
+        };
+        
+        navigate('/confirmation', { state: { bookingDetails } });
+      }
+    } catch (error) {
+      console.error("Error processing booking:", error);
+      toast({
+        title: "Payment Failed",
+        description: "There was an issue processing your payment. Please try again.",
+        variant: "destructive"
+      });
+      setIsProcessing(false);
+    }
   };
   
   const isFormValid = Object.values(formData).every(value => value.trim() !== '');

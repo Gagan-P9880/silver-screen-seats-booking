@@ -1,33 +1,56 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Film } from 'lucide-react';
-import { Movie, movies, showtimes } from '../data/moviesData';
+import { Movie } from '../types/cinema';
+import { fetchMovieById } from '../services/movieService';
 import MovieDetails from '../components/MovieDetails';
+import { useToast } from "../hooks/use-toast";
 
 const MoviePage = () => {
   const { id } = useParams<{ id: string }>();
   const [movie, setMovie] = useState<Movie | null>(null);
-  const [movieShowtimes, setMovieShowtimes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
   
   useEffect(() => {
-    if (id) {
-      const foundMovie = movies.find(m => m.id === parseInt(id));
-      if (foundMovie) {
-        setMovie(foundMovie);
-        
-        const filteredShowtimes = showtimes.filter(s => s.movieId === parseInt(id));
-        setMovieShowtimes(filteredShowtimes);
+    const loadMovie = async () => {
+      if (!id) {
+        navigate('/');
+        return;
       }
-    }
-  }, [id]);
+      
+      try {
+        setIsLoading(true);
+        const movieData = await fetchMovieById(parseInt(id));
+        setMovie(movieData);
+      } catch (error) {
+        console.error("Failed to load movie:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load movie details. Please try again.",
+          variant: "destructive"
+        });
+        navigate('/');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadMovie();
+  }, [id, navigate, toast]);
   
-  if (!movie) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-cinema-dark flex items-center justify-center">
-        <p>Loading movie details...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cinema-gold"></div>
       </div>
     );
+  }
+  
+  if (!movie) {
+    return null;
   }
 
   return (
@@ -61,7 +84,7 @@ const MoviePage = () => {
           </Link>
         </div>
         
-        <MovieDetails movie={movie} showtimes={movieShowtimes} />
+        <MovieDetails movie={movie} />
       </main>
 
       <footer className="bg-cinema-dark-gray border-t border-cinema-dark">
